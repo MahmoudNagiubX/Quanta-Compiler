@@ -1,0 +1,62 @@
+from enum import Enum, auto
+from dataclasses import dataclass
+
+class TokenType(Enum):  # 1️⃣ Token Types
+    # Keywords
+    FORGE = auto()
+    WHEN = auto()
+    OTHERWISE = auto()
+    LOOP = auto()
+    EMIT = auto()
+    TYPE_NUM = auto()
+    TYPE_FLAG = auto()
+    BOOL_ON = auto()
+    BOOL_OFF = auto()
+
+    # Literals
+    INT_LITERAL = auto()
+
+    # Identifier
+    IDENTIFIER = auto()
+
+    # Operators
+    PLUS = auto()
+    MINUS = auto()
+    STAR = auto()
+    SLASH = auto()
+    EQUAL = auto()
+    EQUAL_EQUAL = auto()
+    BANG_EQUAL = auto()
+    LESS = auto()
+    LESS_EQUAL = auto()
+    GREATER = auto()
+    GREATER_EQUAL = auto()
+    AND_AND = auto()
+    OR_OR = auto()
+    ARROW = auto()
+
+    # Delimiters
+    LPAREN = auto()
+    RPAREN = auto()
+    LBRACE = auto()
+    RBRACE = auto()
+    SEMICOLON = auto()
+    COMMA = auto()
+
+    # Special
+    EOF = auto()
+    
+# 2️⃣ Token Class
+@dataclass
+class Token:
+    type: TokenType
+    lexeme: str
+    line: int
+    column: int 
+    
+# 3️⃣ Lexer Error
+class LexerError(Exception):
+    def __init__(self, message, line, column):
+        super().__init__(f"LexerError: {message} at line {line}, column {column}")
+        self.line = line
+        self.column = column
