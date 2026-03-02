@@ -2,15 +2,15 @@ from .token import TokenType, Token, LexerError
  
 class Lexer:
     KEYWORDS = {
-        "forge": TokenType.FORGE,
-        "when": TokenType.WHEN,
-        "otherwise": TokenType.OTHERWISE,
-        "loop": TokenType.LOOP,
-        "emit": TokenType.EMIT,
-        "num": TokenType.TYPE_NUM,
-        "flag": TokenType.TYPE_FLAG,
-        "on": TokenType.BOOL_ON,
-        "off": TokenType.BOOL_OFF,
+        "hewar": TokenType.HEWAR,               
+        "law": TokenType.LAW,                   
+        "ya_emah": TokenType.YA_EMAH,           
+        "laff": TokenType.LAFF,                 
+        "sam3na": TokenType.SAM3NA,           
+        "rkm": TokenType.TYPE_RKM,              
+        "ya_ah_ya_la": TokenType.TYPE_YA_AH_YA_LA, 
+        "eshta": TokenType.BOOL_ESHTA,          
+        "faks": TokenType.BOOL_FAKS,      
     }
 
     SINGLE_CHAR_TOKENS = {

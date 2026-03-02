@@ -3,15 +3,15 @@ from dataclasses import dataclass
 
 class TokenType(Enum):  # 1️⃣ Token Types
     # Keywords
-    FORGE = auto()
-    WHEN = auto()
-    OTHERWISE = auto()
-    LOOP = auto()
-    EMIT = auto()
-    TYPE_NUM = auto()
-    TYPE_FLAG = auto()
-    BOOL_ON = auto()
-    BOOL_OFF = auto()
+    HEWAR = auto()
+    LAW = auto()
+    YA_EMAH = auto()
+    LAFF = auto()
+    SAM3NA = auto()
+    TYPE_RKM = auto()
+    TYPE_YA_AH_YA_LA = auto()
+    BOOL_ESHTA = auto()
+    BOOL_FAKS = auto()
 
     # Literals
     INT_LITERAL = auto()
