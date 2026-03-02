@@ -1,1 +1,0 @@
-# Symbol table and type checking logic
