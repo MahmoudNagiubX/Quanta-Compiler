@@ -15,11 +15,11 @@ We are building a classical 3-stage compiler pipeline:
 ---
 
 ## 🌌 Quanta Programming Language
-**Language Name:** Quanta
-**File Extension:** .qt
-**Compiler:** quanta
-**IDE:** Quanta Studio
-**AI Assistant:** QMind
+**Language Name:** Quanta      
+**File Extension:** .qt      
+**Compiler:** quanta      
+**IDE:** Quanta Studio      
+**AI Assistant:** QMind      
 
 ---
 
