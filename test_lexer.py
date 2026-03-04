@@ -10,7 +10,7 @@ hewar main() {
 """
 
 # 2️⃣ Give the code to our Lexer
-print("🚀 Scanning Egyptian code...")
+print("🚀 Scanning Egyptian code.....")
 lexer = Lexer(source_code)
 tokens = lexer.tokenize()
 
