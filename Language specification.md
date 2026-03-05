@@ -231,7 +231,7 @@ law (condition1) {
 tb law (condition2) {
     ...
 }
-aw {
+ay haga {
     ...
 }
 ```
@@ -240,7 +240,7 @@ aw {
 
 ### 5.3 Else
 
-Keyword: `aw`
+Keyword: `ay haga`
 
 ---
 
@@ -362,7 +362,7 @@ Used to output variables or string literals to the screen.
 
 ### 7.2 Asking for Input (User Input)
 
-Built-in function: `2oly(prompt_string);`
+Built-in function: `oly(prompt_string);`
 Halts the program and waits for the user to type something and press Enter. Always returns a `kalam` (string).
 Example:
 
@@ -396,6 +396,8 @@ Reserved keywords:
 - `raga3`
 - `eshta`
 - `fakes`
+- `law_kan`
+- `oly`
 
 
 
