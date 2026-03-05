@@ -1,29 +1,27 @@
-# Codawy Language Specification v0.1
+# quanta-compiler Language Specification v0.1
 
 ## 1. Overview
 
-Codawy v0.1 is a custom programming language implemented in Python.
+Project Mission:
+The mission of quanta-compiler is to transform programming into a natural form of expression for Egyptian students by using familiar terminology and logic.
 
-The goal of Codawy is to serve as an educational programming language designed to introduce children and beginners to core programming concepts in a structured and culturally adapted way.
+Remove Linguistic Barriers: Eliminate the struggle of learning English syntax alongside programming logic, allowing beginners to focus entirely on computational thinking.
 
-Codawy is designed to teach programming fundamentals clearly and progressively, particularly in an Egyptian educational context, using simplified Arabic-inspired keywords.
+Cultural Empowerment: Create a sense of ownership and pride in technology by showing that a powerful programming language can speak the same way its users do.
 
-Version 0.1 focuses on introducing the following core programming concepts:
+Bridge the Educational Gap: Serve as a progressive stepping stone that introduces structured "C-like" habits—such as mandatory braces and explicit typing—while keeping the entry point friendly and accessible.
 
-- Integer and floating-point arithmetic
-- Statically typed variables
-- Conditional statements (including nested conditionals)
-- Loops (including nested loops)
-- Functions
-- Basic printing
+Foster Logical Fluency: Use intuitive keywords like etba3 (print) and 2oly (input) to make the flow of data feel like a conversation, helping students visualize how a computer processes information.
 
-Advanced features such as arrays, strings, boolean types, classes, and complex data structures are intentionally excluded in v0.1 to keep the language simple and focused.
+Encourage Early Mastery: By simplifying the "front-end" experience of coding, students can master complex concepts like nested loops (tol lma) and function recursion (ya) much earlier in their educational journey.
+
+Advanced features such as arrays, strings, boolean types, loops are intentionally excluded  to keep the language simple and focused.
 
 ---
 
 ## 2. Syntax Style
 
-Codawy follows a C-like syntax structure.
+Quanta compiler follows a python syntax structure.
 
 ### 2.1 Blocks
 
@@ -75,7 +73,7 @@ Multi-line comment:
 
 ## 3. Data Types
 
-Codawy v0.1 supports two numeric types.
+quanta-compiler supports two numeric types.
 
 ### 3.1 rakm (Integer)
 
@@ -89,14 +87,14 @@ rakm x = 5;
 
 ---
 
-### 3.2 kasr (Float)
+### 3.2 fatafet (Float)
 
 Represents floating-point numbers.
 
 Example:
 
 ```
-kasr y = 7.3;
+fatafet y = 7.3;
 ```
 
 ---
@@ -112,55 +110,36 @@ kasr y = 7.3;
 
 ### 3.4 Implicit Conversions
 
-Codawy allows implicit conversions:
+quanta-compiler allows implicit conversions:
 
-- `rakm → kasr` (integer to float) is allowed.
-- `kasr → rakm` (float to integer) is allowed.
+- `rakm → fatafet` (integer to float) is allowed.
+- `fatafet → rakm` (float to integer) is allowed.
 
 Float-to-integer conversion:
 
 - Always truncates toward zero.
-- `7.7 → 7`
-- `-7.7 → -7`
+- `5.5 → 5`
+- `-10.2 → -10`
 
 Truncation happens automatically wherever a `rakm` is expected.
 
 ---
 
-### 3.5 Boolean Semantics
 
-Codawy does not have a boolean type.
-
-Instead:
-
-- `1` represents true.
-- `0` represents false.
-- Any value other than `1` or `0` inside a condition is an error.
-
-Valid:
-
-```
-lw (1) { ... }
-```
-
-Error:
-
-```
-lw (3) { ... }
-```
-
----
-### 3.6 kalam (String)
-Represents text. Text must be wrapped in double quotes.
-Example:
-`kalam greeting = "Ahlan wa sahlan!";`
-
-### 3.7 ya_ah_ya_la (Boolean)
+### 3.5 ya_ah_ya_la (Boolean)
 Native boolean type for conditions. 
 - `eshta` represents true (1).
 - `fakes` represents false (0).
 Example:
 `ya_ah_ya_la is_ready = eshta;`
+---
+
+### 3.6 kalam (String)
+Represents text. Text must be wrapped in double quotes.
+Example:
+`kalam greeting = "Ahlan wa sahlan!";`
+
+---
 
 ### 3.8 taboor (Arrays)
 Represents a fixed list of items of the same type.
@@ -184,12 +163,12 @@ Top-level statements execute in order from top to bottom.
 
 ### 4.2 Function Declaration
 
-Functions are declared using the keyword `ya`.
+Functions are declared using the keyword `wasfa`.
 
 Example:
 
 ```
-ya add(rakm a, rakm b) {
+wasfa add(rakm a, rakm b) {
     rakm result = a + b;
     raga3 result;
 }
@@ -199,17 +178,15 @@ ya add(rakm a, rakm b) {
 
 ### 4.3 Scopes
 
-Scopes are created by:
+rakm x = 10;        // Global scope (The Street)
 
-- The global program
-- Each function body
-- Each block `{ ... }`
+{                   // <--- START of a new scope
+    rakm y = 5;     // This 'y' only exists inside these braces
+    etba3(x + y);   // Prints 15 (it can see 'x' outside)
+}                   // <--- END of the scope
 
-Variable lookup follows lexical scoping:
-
-- Search current scope first
-- Then outer scope
-- If not found → error
+etba3(x);           // This works! (10)
+etba3(y);           // ERROR! 'y' was destroyed when the block ended.
 
 ---
 
@@ -219,7 +196,7 @@ Examples:
 
 ```
 rakm x = 5;
-kasr y = 3.2;
+fatafet y = 3.2;
 ```
 
 Rules:
@@ -233,10 +210,10 @@ Rules:
 
 ### 5.1 If Statement
 
-Keyword: `lw`
+Keyword: `law`
 
 ```
-lw (condition) {
+law (condition) {
     ...
 }
 ```
@@ -245,13 +222,13 @@ lw (condition) {
 
 ### 5.2 Else If
 
-Keyword sequence: `tb lw`
+Keyword sequence: `tb law`
 
 ```
-lw (condition1) {
+law (condition1) {
     ...
 }
-tb lw (condition2) {
+tb law (condition2) {
     ...
 }
 aw {
@@ -267,14 +244,29 @@ Keyword: `aw`
 
 ---
 
+### 5.4 switch 
+
+keyword: `ekhtar`
+
+example:
+rakm yom = 1;
+
+ekhtar (yom):
+    law_kan 1:
+        etba3("El 7ad");
+    law_kan 2:
+        etba3("El Etneen");
+    ay_7aga:
+        etba3("Yom tani");
+---
 ### 5.4 While Loop
 
-Keyword sequence: `tol lma`
+Keyword sequence: `khalik`
 
 Only while loops are supported in v0.1.
 
 ```
-tol lma (condition) {
+khalik (condition) {
     ...
 }
 ```
@@ -304,12 +296,12 @@ lef (rakm i = 0; i < 5; i = i + 1) {
 - `*`
 - `/`
 
-Division `/` always returns `kasr`.
+Division `/` always returns `fatafet`.
 
 Example:
 
 ```
-rakm x = 5 / 2;   // 5 / 2 = 2.5 → truncated to 2
+rakm x = 5 / 2;   // 5 / 2 = 2.5 → it will be 2
 ```
 
 ---
@@ -325,8 +317,8 @@ rakm x = 5 / 2;   // 5 / 2 = 2.5 → truncated to 2
 
 Comparison results:
 
-- `1` if true
-- `0` if false
+- `eshta` if true
+- `fakes` if false
 
 ---
 
@@ -375,7 +367,7 @@ Halts the program and waits for the user to type something and press Enter. Alwa
 Example:
 
 ```
-kalam name = weshweshny("Esmak eh ya basha? ");
+kalam name = 2oly("Esmak eh ya basha? ");
 etba3("Ahlan " + name);
 
 ```
@@ -386,21 +378,26 @@ etba3("Ahlan " + name);
 Reserved keywords:
 
 - `rakm`
-- `kasr`
+- `fatafet`
 - `ya`
-- `lw`
-- `aw`
-- `tb`
-- `tol`
-- `lma`
+- `law`
+- `tb law`
+- `ekhtar`
 - `raga3`
+- `khalik`
 - `etba3`
 - `wa`
 - `kalam`
 - `ya_ah_ya_la`, `eshta`, `faks`
-- `rasa`
-- `laff`
-- `2oly`
+- `taboor`
+- `lef`
+- `wasfa`
+- `etba3`
+- `raga3`
+- `eshta`
+- `fakes`
+
+
 
 
 Identifiers cannot use these names.
