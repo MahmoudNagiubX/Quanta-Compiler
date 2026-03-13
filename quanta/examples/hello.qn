@@ -1,5 +1,0 @@
-// examples/hello.qn
-fn main() {
-    let name: str = "World";
-    print("Hello, " + name);
-}
