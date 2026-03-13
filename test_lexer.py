@@ -1,19 +1,36 @@
-from quanta.compiler.Lexer.lexer import Lexer
+from quanta.compiler.lexer.lexer import Lexer
+from quanta.compiler.lexer.token import TokenType
 
-# 1️⃣ Write some Egyptian Quanta code!
-source_code = """
-hewar main() {
-    law (eshta) {
-        sam3na(100);
+def dump_types(source: str) -> list[TokenType]:
+    return [token.type for token in Lexer(source).tokenize()]
+
+if __name__ == "__main__":
+    source_code = '''
+    wasfa main() {
+        ya_ah_ya_la ready = eshta;
+        law (ready) {
+            etba3("Ahlan");
+        }
+        tb law (fakes) {
+            etba3("La2");
+        }
+        ay haga {
+            etba3("Done");
+        }
     }
-}
-"""
+    '''
 
-# 2️⃣ Give the code to our Lexer
-print("🚀 Scanning Egyptian code.....")
-lexer = Lexer(source_code)
-tokens = lexer.tokenize()
+    print("Scanning Quanta code...")
+    for token in Lexer(source_code).tokenize():
+        print(f"Type: {token.type.name:<15} | Lexeme: {token.lexeme!r}")
 
-# 3️⃣ Print out all the tokens it found
-for token in tokens:
-    print(f"Type: {token.type.name:<20} | Lexeme: '{token.lexeme}'")
+    expected_prefix = [
+        TokenType.WASFA,
+        TokenType.IDENTIFIER,
+        TokenType.LPAREN,
+        TokenType.RPAREN,
+        TokenType.LBRACE,
+    ]
+
+    assert dump_types(source_code)[:5] == expected_prefix
+    print("\nBasic lexer smoke test passed.")
