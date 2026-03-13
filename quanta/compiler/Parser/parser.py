@@ -1,9 +1,9 @@
 from __future__ import annotations
-from ..lexer.token import Token, TokenType
-from .ast_nodes import (Assign, Binary, Block, Call, ExpressionStmt, FunctionDecl,
+from quanta.compiler.lexer.token import Token, TokenType
+from quanta.compiler.parser.ast_nodes import (Assign, Binary, Block, Call, ExpressionStmt, FunctionDecl,
     Grouping, IfStmt, Literal, Parameter, PrintStmt, ReturnStmt, Unary, VarDecl,
     Variable, WhileStmt,)
-from .errors import ParseError
+from quanta.compiler.parser.errors import ParseError
 
 class Parser: # Recursive Descent Parser for Quanta.
     
