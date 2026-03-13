@@ -1,6 +1,5 @@
-class ParseError(Exception):
-    """Raised when the parser finds invalid syntax."""
-
+class ParseError(Exception):    # Raised when parser finds invalid syntax.
+    
     def __init__(self, message: str, line: int | None = None, column: int | None = None):
         self.message = message
         self.line = line

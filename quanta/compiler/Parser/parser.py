@@ -1,67 +1,72 @@
 from __future__ import annotations
+from ..lexer.token import Token, TokenType
+from .ast_nodes import (Assign, Binary, Block, Call, ExpressionStmt, FunctionDecl,
+    Grouping, IfStmt, Literal, Parameter, PrintStmt, ReturnStmt, Unary, VarDecl,
+    Variable, WhileStmt,)
+from .errors import ParseError
 
-from Lexer.token import TokenType, Token
-from Parser.ast_nodes import (
-    Literal,
-    Variable,
-    Assign,
-    Binary,
-    Unary,
-    Grouping,
-    Call,
-    ExpressionStmt,
-    PrintStmt,
-    VarDecl,
-    Block,
-    IfStmt,
-    WhileStmt,
-    FunctionDecl,
-    ReturnStmt,
-)
-from Parser.errors import ParseError
-
-
-class Parser:
-    """
-    Recursive-descent parser for Quanta.
-
-    Input:
-        list[Token]
-
-    Output:
-        list[Stmt]   -> the program AST
-    """
+class Parser: # Recursive Descent Parser for Quanta.
+    
+    """ Input: list[Token]
+        Output: list[Stmt]
+    
+    Why we need this:
+        - Lexer gives us tokens.
+        - Parser gives those tokens structure.
+        - Semantic analysis and IR generation will use this AST later. """
+    
+    # These token types are valid language types.
+    TYPE_TOKENS = (
+        TokenType.RAKM,
+        TokenType.FATAFET,
+        TokenType.KALAM,
+        TokenType.YA_AH_YA_LA,
+        TokenType.TABOOR,
+    )
 
     def __init__(self, tokens: list[Token]):
         self.tokens = tokens
         self.current = 0
 
-    # Parse the token stream into an AST (list of statements)
-    
-    def parse(self) -> list:  
-        
-        statements = []
+    def parse(self) -> list:    # Parse the whole source file into AST statements.
 
-        while not self._is_at_end():   #Keep parsing until we reach EOF(end of file)
+        statements = []
+        while not self._is_at_end():
             statements.append(self.declaration())
 
         return statements
-    
-    # Declarations ->  varDecl - funcDecl - statement
-    
+
+    # ============================================================
+    # Declarations
+    # ============================================================
+
     def declaration(self):
+        """
+        declaration ->
+              functionDecl
+            | varDecl
+            | statement
+        """
 
-        if self._match(TokenType.RAKM , TokenType.FATAFET , TokenType.KALAM , TokenType.BOOL):
-            return self.var_declaration(self._previous())
-
-        if self._match(TokenType.WASFA):
+        # Function declaration:
+        # wasfa add(...) { ... }
+        if self._match(TokenType.WASFA, TokenType.YA):
             return self.function_declaration()
+
+        # Variable declaration:
+        # rakm x = 5;
+        if self._match(*self.TYPE_TOKENS):
+            return self.var_declaration(self._previous())
 
         return self.statement()
 
     def var_declaration(self, var_type: Token):
         """
         varDecl -> type IDENTIFIER ("=" expression)? ";"
+
+        Examples:
+            rakm x = 5;
+            kalam name;
         """
         name = self._consume(TokenType.IDENTIFIER, "Expected variable name.")
 
@@ -74,17 +79,26 @@ class Parser:
 
     def function_declaration(self):
         """
-        funcDecl -> "wasfa" IDENTIFIER "(" parameters? ")" block
+        functionDecl ->
+            ("wasfa" | "ya") IDENTIFIER "(" parameters? ")" block
+
+        Example:
+            wasfa add(rakm a, rakm b) {
+                raga3 a + b;
+            }
         """
         name = self._consume(TokenType.IDENTIFIER, "Expected function name.")
         self._consume(TokenType.LPAREN, "Expected '(' after function name.")
 
-        params = []
+        params: list[Parameter] = []
+
+        # Parse parameters if function has any.
         if not self._check(TokenType.RPAREN):
             while True:
-                params.append(
-                    self._consume(TokenType.IDENTIFIER, "Expected parameter name.")
-                )
+                param_type = self._consume_any(self.TYPE_TOKENS, "Expected parameter type.")
+                param_name = self._consume(TokenType.IDENTIFIER, "Expected parameter name.")
+                params.append(Parameter(param_type, param_name))
+
                 if not self._match(TokenType.COMMA):
                     break
 
@@ -132,15 +146,16 @@ class Parser:
         """
         self._consume(TokenType.LPAREN, "Expected '(' after etba3.")
         value = self.expression()
-        self._consume(TokenType.RPAREN, "Expected ')' after value.")
+        self._consume(TokenType.RPAREN, "Expected ')' after printed value.")
         self._consume(TokenType.SEMICOLON, "Expected ';' after print statement.")
         return PrintStmt(value)
 
     def if_statement(self):
         """
-        ifStmt -> "law" "(" expression ")" statement
-                  ("tb_law" "(" expression ")" statement)*
-                  ("ay_haga" statement)?
+        ifStmt ->
+            "law" "(" expression ")" statement
+            ("tb law" "(" expression ")" statement)*
+            ("ay haga" statement)?
         """
         self._consume(TokenType.LPAREN, "Expected '(' after law.")
         condition = self.expression()
@@ -150,9 +165,9 @@ class Parser:
 
         elif_branches = []
         while self._match(TokenType.TB_LAW):
-            self._consume(TokenType.LPAREN, "Expected '(' after tb_law.")
+            self._consume(TokenType.LPAREN, "Expected '(' after tb law.")
             elif_condition = self.expression()
-            self._consume(TokenType.RPAREN, "Expected ')' after elif condition.")
+            self._consume(TokenType.RPAREN, "Expected ')' after else-if condition.")
             elif_body = self.statement()
             elif_branches.append((elif_condition, elif_body))
 
@@ -188,7 +203,9 @@ class Parser:
     def block_statements(self) -> list:
         """
         block -> "{" declaration* "}"
-        Assumes the opening '{' was already consumed.
+
+        Important:
+        This function assumes '{' was already consumed.
         """
         statements = []
 
@@ -223,6 +240,7 @@ class Parser:
             equals = self._previous()
             value = self.assignment()
 
+            # Only variables can appear on left side of assignment.
             if isinstance(expr, Variable):
                 return Assign(expr.name, value)
 
@@ -340,7 +358,7 @@ class Parser:
 
     def finish_call(self, callee):
         """
-        Parse function call arguments after '(' has already been consumed.
+        Parse function-call arguments after '(' has already been consumed.
         """
         arguments = []
 
@@ -360,7 +378,7 @@ class Parser:
             | FLOAT_LITERAL
             | STRING_LITERAL
             | ESHTA
-            | FAKS
+            | FAKES
             | IDENTIFIER
             | "(" expression ")"
         """
@@ -368,7 +386,7 @@ class Parser:
         if self._match(TokenType.ESHTA):
             return Literal(True)
 
-        if self._match(TokenType.FAKS):
+        if self._match(TokenType.FAKES):
             return Literal(False)
 
         if self._match(TokenType.INT_LITERAL):
@@ -380,7 +398,7 @@ class Parser:
         if self._match(TokenType.STRING_LITERAL):
             lexeme = self._previous().lexeme
 
-            # Remove quotes if the lexer stores them
+            # Remove surrounding quotes if lexer stored them.
             if len(lexeme) >= 2 and lexeme[0] == '"' and lexeme[-1] == '"':
                 lexeme = lexeme[1:-1]
 
@@ -394,8 +412,7 @@ class Parser:
             self._consume(TokenType.RPAREN, "Expected ')' after expression.")
             return Grouping(expr)
 
-        token = self._peek()
-        raise self._error(token, "Expected expression.")
+        raise self._error(self._peek(), "Expected expression.")
 
     # ============================================================
     # Helpers
@@ -403,8 +420,7 @@ class Parser:
 
     def _match(self, *types: TokenType) -> bool:
         """
-        If current token matches any given type, consume it and return True.
-        Otherwise return False.
+        If current token matches one of the given types, consume it.
         """
         for token_type in types:
             if self._check(token_type):
@@ -413,51 +429,46 @@ class Parser:
         return False
 
     def _consume(self, token_type: TokenType, message: str) -> Token:
-        """
-        Consume the current token if it matches token_type.
-        Otherwise raise ParseError.
-        """
+       
+        """ Consume current token if it matches expected type. """
+        
         if self._check(token_type):
             return self._advance()
 
         raise self._error(self._peek(), message)
 
-    def _check(self, token_type: TokenType) -> bool:
-        """
-        Check whether current token is of the given type.
-        """
+    def _consume_any(self, token_types: tuple[TokenType, ...], message: str) -> Token:
+    
+        """ Consume current token if it matches any type in token_types.
+        Useful for parsing language types."""
+        
+        for token_type in token_types:
+            if self._check(token_type):
+                return self._advance()
+
+        raise self._error(self._peek(), message)
+
+    def _check(self, token_type: TokenType) -> bool:    # Check whether current token matches token_type.
         if self._is_at_end():
-            return False
+            return token_type == TokenType.EOF
+
         return self._peek().type == token_type
 
-    def _advance(self) -> Token:
-        """
-        Move to the next token and return the previous one.
-        """
+    def _advance(self) -> Token:    # Move to next token and return the consumed token.
         if not self._is_at_end():
             self.current += 1
+
         return self._previous()
 
-    def _is_at_end(self) -> bool:
-        """
-        True if current token is EOF.
-        """
+    def _is_at_end(self) -> bool:  # True when current token is EOF.
         return self._peek().type == TokenType.EOF
 
-    def _peek(self) -> Token:
-        """
-        Return current token without consuming it.
-        """
+    def _peek(self) -> Token:   # Return current token without consuming it.
         return self.tokens[self.current]
 
-    def _previous(self) -> Token:
-        """
-        Return most recently consumed token.
-        """
+    def _previous(self) -> Token:   # Return last consumed token.
         return self.tokens[self.current - 1]
 
     def _error(self, token: Token, message: str) -> ParseError:
-        """
-        Create a ParseError using token position information.
-        """
+        """ Build a parse error with line/column info. """ 
         return ParseError(message, token.line, token.column)
