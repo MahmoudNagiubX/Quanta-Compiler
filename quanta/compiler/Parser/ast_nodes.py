@@ -193,11 +193,17 @@ class WhileStmt(Stmt):
 class FunctionDecl(Stmt):
     """
     Function declaration.
-    Example:
-        wasfa add(rakm a, rakm b) {
+
+    Examples:
+        rakm add(rakm a, rakm b) {
             raga3 a + b;
         }
+
+        wasfa main() {
+            etba3("hello");
+        }
     """
+    return_type: Any             # Token
     name: Any                    # Token
     params: list[Parameter]
     body: list[Stmt]

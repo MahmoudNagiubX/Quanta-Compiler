@@ -43,21 +43,30 @@ class Parser: # Recursive Descent Parser for Quanta.
     def declaration(self):
         """
         declaration ->
-              functionDecl
+            functionDecl
             | varDecl
             | statement
         """
 
-        # Function declaration:
-        # wasfa add(...) { ... }
-        if self._match(TokenType.WASFA, TokenType.YA):
-            return self.function_declaration()
+        # Function with void return:
+        # wasfa main() { ... }
+        if self._match(TokenType.WASFA):
+            return_type = self._previous()
+            return self.function_declaration(return_type)
 
-        # Variable declaration:
+        # Function or variable starting with a type:
+        # rakm add(...) { ... }
         # rakm x = 5;
         if self._match(*self.TYPE_TOKENS):
-            return self.var_declaration(self._previous())
+            type_token = self._previous()
 
+            # Look ahead:
+            # type IDENTIFIER "("  => function
+            # type IDENTIFIER ...  => variable declaration
+            if self._check(TokenType.IDENTIFIER) and self._check_next(TokenType.LPAREN):
+                return self.function_declaration(type_token)
+
+            return self.var_declaration(type_token)
         return self.statement()
 
     def var_declaration(self, var_type: Token):
@@ -77,22 +86,24 @@ class Parser: # Recursive Descent Parser for Quanta.
         self._consume(TokenType.SEMICOLON, "Expected ';' after variable declaration.")
         return VarDecl(var_type, name, initializer)
 
-    def function_declaration(self):
+    def function_declaration(self, return_type: Token):
         """
         functionDecl ->
-            ("wasfa" | "ya") IDENTIFIER "(" parameters? ")" block
+        returnType IDENTIFIER "(" parameters? ")" block
 
-        Example:
-            wasfa add(rakm a, rakm b) {
+        Examples:
+            rakm add(rakm a, rakm b) {
                 raga3 a + b;
+            }
+
+            wasfa main() {
+                etba3("hello");
             }
         """
         name = self._consume(TokenType.IDENTIFIER, "Expected function name.")
         self._consume(TokenType.LPAREN, "Expected '(' after function name.")
-
         params: list[Parameter] = []
 
-        # Parse parameters if function has any.
         if not self._check(TokenType.RPAREN):
             while True:
                 param_type = self._consume_any(self.TYPE_TOKENS, "Expected parameter type.")
@@ -104,9 +115,8 @@ class Parser: # Recursive Descent Parser for Quanta.
 
         self._consume(TokenType.RPAREN, "Expected ')' after parameters.")
         self._consume(TokenType.LBRACE, "Expected '{' before function body.")
-
         body = self.block_statements()
-        return FunctionDecl(name, params, body)
+        return FunctionDecl(return_type, name, params, body)
 
     # ============================================================
     # Statements
@@ -437,6 +447,12 @@ class Parser: # Recursive Descent Parser for Quanta.
 
         raise self._error(self._peek(), message)
 
+    def _check_next(self, token_type: TokenType) -> bool:
+        """ Check the next token without consuming it """
+        if self.current + 1 >= len(self.tokens):
+            return False
+        return self.tokens[self.current + 1].type == token_type
+    
     def _consume_any(self, token_types: tuple[TokenType, ...], message: str) -> Token:
     
         """ Consume current token if it matches any type in token_types.

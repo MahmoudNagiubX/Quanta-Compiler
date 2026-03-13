@@ -59,20 +59,17 @@ class SemanticAnalyzer:
     # ============================================================
 
     def _collect_function_declarations(self, program: list) -> None:
-        """
-        Register all functions before validating bodies.
+        """Register all functions before validating bodies.
 
-        This allows:
-        - recursion
-        - calling functions before their definitions
-        """
+            This allows:
+                - recursion
+                - calling functions before their definitions """
         for stmt in program:
             if not isinstance(stmt, FunctionDecl):
                 continue
 
             param_symbols: list[ParameterSymbol] = []
             seen_names: set[str] = set()
-
             for param in stmt.params:
                 param_name = param.name.lexeme
 
@@ -85,24 +82,25 @@ class SemanticAnalyzer:
                     continue
 
                 seen_names.add(param_name)
-
                 param_type = self._token_to_type(param.param_type)
 
                 param_symbols.append(
                     ParameterSymbol(
-                        name=param_name,
-                        type=param_type,
-                        line=param.name.line,
-                        column=param.name.column,
+                        name = param_name,
+                        type = param_type,
+                        line = param.name.line,
+                        column = param.name.column,
                     )
                 )
 
+            return_type = self._function_return_type(stmt.return_type)
+
             function_symbol = FunctionSymbol(
-                name=stmt.name.lexeme,
-                line=stmt.name.line,
-                column=stmt.name.column,
-                parameters=param_symbols,
-                type=UNKNOWN_TYPE,   # current AST has no declared return type
+                name = stmt.name.lexeme,
+                line = stmt.name.line,
+                column = stmt.name.column,
+                parameters = param_symbols,
+                type = return_type,
             )
 
             if not self.global_scope.define(function_symbol):
@@ -110,7 +108,7 @@ class SemanticAnalyzer:
                     f"Duplicate function declaration '{stmt.name.lexeme}'",
                     stmt.name.line,
                     stmt.name.column,
-                )
+            )
 
     # ============================================================
     # PASS 2: validate program
@@ -274,9 +272,7 @@ class SemanticAnalyzer:
 
     def _visit_ReturnStmt(self, node: ReturnStmt) -> None:
         """
-        Current AST limitation:
-        we can detect 'return outside function', but not strict function
-        return-type compatibility because FunctionDecl has no return_type yet.
+        Validate return statement against current function return type.
         """
         if self.current_function is None:
             self.result.add_error(
@@ -286,8 +282,36 @@ class SemanticAnalyzer:
             )
             return
 
-        if node.value is not None:
-            self._visit_expression(node.value)
+        expected_type = self.current_function.type
+
+        # void function: return; is okay, return value is not okay
+        if expected_type == VOID_TYPE:
+            if node.value is not None:
+                value_type = self._visit_expression(node.value)
+                self.result.add_error(
+                    f"Void function should not return a value of type '{value_type}'",
+                    node.keyword.line,
+                    node.keyword.column,
+                )
+            return
+
+        # non-void function: must return a value
+        if node.value is None:
+            self.result.add_error(
+                f"Function '{self.current_function.name}' must return a value of type '{expected_type}'",
+                node.keyword.line,
+                node.keyword.column,
+            )
+            return
+
+        value_type = self._visit_expression(node.value)
+
+        if not self._is_assignable(expected_type, value_type):
+            self.result.add_error(
+                f"Function '{self.current_function.name}' should return '{expected_type}' but got '{value_type}'",
+                node.keyword.line,
+                node.keyword.column,
+            )
 
     # ============================================================
     # Expression visitors
@@ -524,6 +548,19 @@ class SemanticAnalyzer:
     # Helpers
     # ============================================================
 
+    def _function_return_type(self, return_type_token) -> QuantaType:
+        """
+        Convert function return token to semantic type.
+
+        Rule:
+            - wasfa => void
+            - normal type token => mapped semantic type
+        """
+        if return_type_token.lexeme == "wasfa":
+            return VOID_TYPE
+
+        return TYPE_NAME_MAP.get(return_type_token.lexeme, UNKNOWN_TYPE)
+    
     def _token_to_type(self, type_token) -> QuantaType:
         """
         Convert parser type token to semantic type.

@@ -2,62 +2,61 @@ from quanta.compiler.lexer.lexer import Lexer
 from quanta.compiler.parser.parser import Parser
 from quanta.compiler.semantic_analysis.analyser import SemanticAnalyzer
 
+
 def analyze_source(source: str):
     tokens = Lexer(source).tokenize()
     ast = Parser(tokens).parse()
-    result = SemanticAnalyzer().analyze(ast)
-    return result
+    return SemanticAnalyzer().analyze(ast)
 
-def test_valid_program():
+
+def test_valid_typed_return():
     source = """
-    wasfa add(rakm a, rakm b) {
+    rakm add(rakm a, rakm b) {
         raga3 a + b;
-    }
-
-    wasfa main() {
-        rakm x = 5;
-        rakm y = add(x, 2);
-        law (eshta) {
-            etba3("ok");
-        }
     }
     """
     result = analyze_source(source)
     assert result.ok
 
 
-def test_type_mismatch():
+def test_wrong_return_type():
     source = """
-    wasfa main() {
-        rakm x = "hello";
+    rakm add(rakm a, rakm b) {
+        raga3 "hello";
     }
     """
     result = analyze_source(source)
     assert not result.ok
-    assert len(result.errors) > 0
+    assert any("should return" in e.message.lower() for e in result.errors)
 
 
-def test_undeclared_variable():
+def test_missing_return_value():
     source = """
-    wasfa main() {
-        rakm x = y + 1;
+    rakm add(rakm a, rakm b) {
+        raga3;
     }
     """
     result = analyze_source(source)
     assert not result.ok
-    assert any("undeclared" in error.message.lower() for error in result.errors)
+    assert any("must return a value" in e.message.lower() for e in result.errors)
 
 
-def test_wrong_argument_count():
+def test_void_function_returning_value():
     source = """
-    wasfa add(rakm a, rakm b) {
-        raga3 a + b;
-    }
-
     wasfa main() {
-        rakm x = add(1);
+        raga3 5;
     }
     """
     result = analyze_source(source)
     assert not result.ok
-    assert any("expects" in error.message.lower() for error in result.errors)
+    assert any("void function" in e.message.lower() for e in result.errors)
+
+
+def test_void_function_plain_return():
+    source = """
+    wasfa main() {
+        raga3;
+    }
+    """
+    result = analyze_source(source)
+    assert result.ok

@@ -21,11 +21,8 @@ class ParameterSymbol(Symbol):
     pass
 
 @dataclass
-class FunctionSymbol(Symbol):   # Symbol for functions.
-    """ Important:
-            With the current AST we do not have an explicit declared return type,
-            so we keep function.type as UNKNOWN_TYPE for now."""
-    parameters: List[ParameterSymbol] = field(default_factory = list)
+class FunctionSymbol(Symbol):   # Symbol for functions
+    parameters: List[ParameterSymbol] = field(default_factory=list)
 
     def __init__(
         self,
@@ -35,5 +32,5 @@ class FunctionSymbol(Symbol):   # Symbol for functions.
         parameters: List[ParameterSymbol] | None = None,
         type: QuantaType = UNKNOWN_TYPE,
     ):
-        super().__init__(name = name, type = type, line = line, column = column)
+        super().__init__(name=name, type=type, line=line, column=column)
         self.parameters = parameters or []
