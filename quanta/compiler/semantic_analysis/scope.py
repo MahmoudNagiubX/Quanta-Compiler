@@ -1,35 +1,34 @@
-'''
-Implements lexical scopes used during semantic analysis.
-global
- └── function scope
-      └── block scope
-'''
-
-
 from __future__ import annotations
 from typing import Dict, Optional
 from .symbols import Symbol
 
+class Scope: # Lexical scope used during semantic analysis.
+    """
+    Example:
+        global scope
+          -> function scope
+              -> block scope"""
 
-class Scope:
     def __init__(self, name: str, parent: Optional["Scope"] = None) -> None:
-        self.name = name             # Create a new scope.
-        self.parent = parent                      
+        self.name = name
+        self.parent = parent
         self.symbols: Dict[str, Symbol] = {}
 
-    def define(self, symbol: Symbol) -> bool:
-        if symbol.name in self.symbols:          # Add a symbol to the current scope.
-            return False                         # Returns False if the symbol already exists in this scope.
+    def define(self, symbol: Symbol) -> bool:   # Add symbol to current scope only.
+            # Returns False if symbol already exists in this scope.
+        if symbol.name in self.symbols:
+            return False
+
         self.symbols[symbol.name] = symbol
         return True
 
-    def lookup_local(self, name: str) -> Optional[Symbol]:
-        return self.symbols.get(name)             # Search for a symbol only in this scope.
+    def lookup_local(self, name: str) -> Optional[Symbol]: # Search only in current scope
+        return self.symbols.get(name)
 
-    def lookup(self, name: str) -> Optional[Symbol]:
+    def lookup(self, name: str) -> Optional[Symbol]:    # Search current scope, then parent scopes.
         scope: Optional[Scope] = self
-        while scope is not None:                  # Search for a symbol starting from this scope
-                                                  # and walking up through parent scopes.
+
+        while scope is not None:
             symbol = scope.lookup_local(name)
             if symbol is not None:
                 return symbol

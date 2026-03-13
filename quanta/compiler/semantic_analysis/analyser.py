@@ -1,664 +1,584 @@
-"""
-analyzer.py
-
-Main semantic analyzer for the Quanta language.
-
-This module is responsible for checking the meaning of the program
-after parsing has already succeeded.
-
-Semantic analysis checks things like:
-- duplicate function declarations
-- duplicate variable declarations in the same scope
-- undeclared identifiers
-- assignment type mismatches
-- invalid condition types for when/loop
-- invalid return types
-- invalid binary expression operand types
-- invalid function calls
-
-This analyzer is designed in a professional multi-pass style:
-
-Pass 1:
-    Collect all function declarations into the global scope.
-
-Pass 2:
-    Validate function bodies, statements, and expressions.
-
-Important:
-This file depends on the supporting semantic files:
-- scope.py
-- symbols.py
-- types.py
-- result.py
-"""
-
+""" semantic analyzer checks the meaning of the program 🧠 """
 from __future__ import annotations
-
 from typing import Optional
-from .scope import Scope
+from quanta.compiler.parser.ast_nodes import (Assign, Binary, Block, Call, ExpressionStmt,
+    FunctionDecl, Grouping, IfStmt, Literal, Parameter, PrintStmt, ReturnStmt,
+    Unary, VarDecl, Variable, WhileStmt,)
 from .results import SemanticResult
+from .scope import Scope
 from .symbols import FunctionSymbol, ParameterSymbol, VariableSymbol
-from .type import TYPE_NAME_MAP, NUM_TYPE, FLAG_TYPE, UNKNOWN_TYPE, QuantaType
-
+from .type import (
+    FATAFET_TYPE,
+    KALAM_TYPE,
+    RAKM_TYPE,
+    TYPE_NAME_MAP,
+    UNKNOWN_TYPE,
+    VOID_TYPE,
+    YA_AH_YA_LA_TYPE,
+    QuantaType,
+)
 
 class SemanticAnalyzer:
     """
-    Main semantic analyzer class.
+    Semantic analyzer for the current Quanta AST.
 
-    Internal state:
-    - result: stores collected semantic errors
-    - global_scope: root scope containing global declarations (mainly functions)
-    - current_scope: scope currently active during traversal
-    - current_function: function currently being analyzed
+    Input:
+        program: list[Stmt]
+
+    Responsibilities:
+    - collect function declarations
+    - validate statements and expressions
+    - manage scopes
+    - detect type and name errors
     """
 
     def __init__(self) -> None:
-        """
-        Initialize the semantic analyzer.
-        """
-        # Final semantic result object that stores all errors.
         self.result = SemanticResult()
 
-        # Global scope lives for the entire program.
-        # All top-level function declarations are stored here.
         self.global_scope = Scope("global")
-
-        # Current scope starts at global scope.
         self.current_scope = self.global_scope
 
-        # Tracks the function currently being analyzed.
-        # Used when checking return statements.
         self.current_function: Optional[FunctionSymbol] = None
 
-    def analyze(self, program) -> SemanticResult:
+    def analyze(self, program: list) -> SemanticResult:
         """
-        Entry point for semantic analysis.
+        Run semantic analysis in two passes.
 
-        Steps:
-        1. Collect all function declarations into the global scope.
-        2. Validate all function bodies.
+        Pass 1:
+            collect all function declarations in global scope
 
-        Args:
-            program: root AST node of the whole program
-
-        Returns:
-            SemanticResult containing collected semantic errors.
+        Pass 2:
+            validate all top-level declarations/statements
         """
         self._collect_function_declarations(program)
         self._validate_program(program)
         return self.result
 
     # ============================================================
-    # PASS 1: COLLECT FUNCTION DECLARATIONS
+    # PASS 1: collect function declarations
     # ============================================================
 
-    def _collect_function_declarations(self, program) -> None:
+    def _collect_function_declarations(self, program: list) -> None:
         """
-        First semantic pass.
+        Register all functions before validating bodies.
 
-        Purpose:
-        Register all functions in the global scope before checking bodies.
-
-        Why this matters:
-        It allows recursion and forward references to functions.
-
-        Example:
-            forge fact(num n) -> num {
-                emit fact(n - 1);
-            }
-
-        Assumes:
-            program.functions is a list of function declaration AST nodes.
+        This allows:
+        - recursion
+        - calling functions before their definitions
         """
-        for fn in program.functions:
-            # Resolve the declared return type of the function.
-            return_type = self._resolve_type_name(
-                fn.return_type_name,
-                fn.line,
-                fn.column,
-            )
+        for stmt in program:
+            if not isinstance(stmt, FunctionDecl):
+                continue
 
-            parameters = []
-            seen_names = set()
+            param_symbols: list[ParameterSymbol] = []
+            seen_names: set[str] = set()
 
-            # Build parameter symbols and check for duplicate parameter names.
-            for param in fn.parameters:
-                if param.name in seen_names:
+            for param in stmt.params:
+                param_name = param.name.lexeme
+
+                if param_name in seen_names:
                     self.result.add_error(
-                        f"Duplicate parameter '{param.name}' in function '{fn.name}'",
-                        param.line,
-                        param.column,
+                        f"Duplicate parameter '{param_name}' in function '{stmt.name.lexeme}'",
+                        param.name.line,
+                        param.name.column,
                     )
                     continue
 
-                seen_names.add(param.name)
+                seen_names.add(param_name)
 
-                param_type = self._resolve_type_name(
-                    param.type_name,
-                    param.line,
-                    param.column,
-                )
+                param_type = self._token_to_type(param.param_type)
 
-                parameters.append(
+                param_symbols.append(
                     ParameterSymbol(
-                        name=param.name,
+                        name=param_name,
                         type=param_type,
-                        line=param.line,
-                        column=param.column,
+                        line=param.name.line,
+                        column=param.name.column,
                     )
                 )
 
-            # Create function symbol.
             function_symbol = FunctionSymbol(
-                name=fn.name,
-                type=return_type,  # In FunctionSymbol, 'type' means return type.
-                line=fn.line,
-                column=fn.column,
-                parameters=parameters,
+                name=stmt.name.lexeme,
+                line=stmt.name.line,
+                column=stmt.name.column,
+                parameters=param_symbols,
+                type=UNKNOWN_TYPE,   # current AST has no declared return type
             )
 
-            # Define function in global scope.
-            # If already exists, that means duplicate function declaration.
             if not self.global_scope.define(function_symbol):
                 self.result.add_error(
-                    f"Duplicate function declaration '{fn.name}'",
-                    fn.line,
-                    fn.column,
+                    f"Duplicate function declaration '{stmt.name.lexeme}'",
+                    stmt.name.line,
+                    stmt.name.column,
                 )
 
     # ============================================================
-    # PASS 2: VALIDATE FUNCTION BODIES
+    # PASS 2: validate program
     # ============================================================
 
-    def _validate_program(self, program) -> None:
-        """
-        Second semantic pass.
+    def _validate_program(self, program: list) -> None:
+        for stmt in program:
+            self._visit_statement(stmt)
 
-        Walk through all function bodies and validate semantics.
-        """
-        for fn in program.functions:
-            self._visit_function_decl(fn)
-
-    def _visit_function_decl(self, node) -> None:
-        """
-        Validate one function declaration.
-
-        Responsibilities:
-        - lookup function symbol in global scope
-        - set current_function
-        - create a function scope
-        - define parameters inside the function scope
-        - validate the function body
-        """
-        function_symbol = self.global_scope.lookup(node.name)
-
-        # Save old state so we can restore it later.
-        previous_function = self.current_function
-        previous_scope = self.current_scope
-
-        # Update analyzer state for this function.
-        self.current_function = function_symbol
-        self.current_scope = Scope(
-            name=f"function:{node.name}",
-            parent=self.global_scope,
-        )
-
-        # Define parameters in the function scope.
-        for param_symbol in function_symbol.parameters:
-            if not self.current_scope.define(param_symbol):
-                self.result.add_error(
-                    f"Duplicate parameter '{param_symbol.name}'",
-                    param_symbol.line,
-                    param_symbol.column,
-                )
-
-        # Visit function body.
-        self._visit_block(node.body)
-
-        # Restore previous state.
-        self.current_scope = previous_scope
-        self.current_function = previous_function
-
-    def _visit_block(self, node) -> None:
-        """
-        Validate a block node.
-
-        For MVP:
-        Every block creates a new nested scope.
-
-        This is clean and scalable for future nested scopes.
-
-        Assumes:
-            node.statements is a list of statement nodes.
-        """
-        previous_scope = self.current_scope
-
-        # Create a new child scope for this block.
-        self.current_scope = Scope("block", parent=previous_scope)
-
-        # Validate all statements in the block.
-        for statement in node.statements:
-            self._visit_statement(statement)
-
-        # Restore old scope when leaving block.
-        self.current_scope = previous_scope
+    # ============================================================
+    # Statement visitors
+    # ============================================================
 
     def _visit_statement(self, node) -> None:
-        """
-        Generic statement dispatcher.
-
-        Uses dynamic dispatch based on AST class name.
-
-        Example:
-            If node class is VarDeclNode,
-            this method calls self._visit_VarDeclNode(node)
-        """
         method_name = f"_visit_{type(node).__name__}"
         method = getattr(self, method_name, None)
 
         if method is None:
             self.result.add_error(
-                f"No semantic handler for node '{type(node).__name__}'",
-                node.line,
-                node.column,
+                f"No semantic visitor implemented for statement '{type(node).__name__}'",
+                0,
+                0,
             )
             return
 
         method(node)
 
-    # ============================================================
-    # STATEMENT VALIDATION
-    # ============================================================
-
-    def _visit_VarDeclNode(self, node) -> None:
+    def _visit_FunctionDecl(self, node: FunctionDecl) -> None:
         """
-        Validate variable declaration.
-
-        Rules:
-        - declared type must exist
-        - initializer type must match declared type
-        - variable cannot be redeclared in the same scope
-
-        Example:
-            num x = 5;
+        Validate a function body in its own scope.
         """
-        declared_type = self._resolve_type_name(
-            node.type_name,
-            node.line,
-            node.column,
-        )
+        function_symbol = self.global_scope.lookup(node.name.lexeme)
 
-        initializer_type = self._visit_expression(node.initializer)
+        previous_scope = self.current_scope
+        previous_function = self.current_function
 
-        # Type compatibility check for initialization.
-        if declared_type != UNKNOWN_TYPE and initializer_type != UNKNOWN_TYPE:
-            if declared_type != initializer_type:
+        self.current_scope = Scope(f"function:{node.name.lexeme}", parent=self.global_scope)
+        self.current_function = function_symbol if isinstance(function_symbol, FunctionSymbol) else None
+
+        # Define parameters in function scope.
+        seen_names: set[str] = set()
+        for param in node.params:
+            param_name = param.name.lexeme
+            param_type = self._token_to_type(param.param_type)
+
+            if param_name in seen_names:
+                # Duplicate already reported in pass 1, so skip re-report.
+                continue
+
+            seen_names.add(param_name)
+
+            ok = self.current_scope.define(
+                ParameterSymbol(
+                    name=param_name,
+                    type=param_type,
+                    line=param.name.line,
+                    column=param.name.column,
+                )
+            )
+
+            if not ok:
                 self.result.add_error(
-                    f"Cannot initialize variable '{node.name}' of type '{declared_type}' "
-                    f"with value of type '{initializer_type}'",
-                    node.line,
-                    node.column,
+                    f"Duplicate parameter '{param_name}'",
+                    param.name.line,
+                    param.name.column,
                 )
 
-        # Create variable symbol.
-        symbol = VariableSymbol(
-            name=node.name,
-            type=declared_type,
-            line=node.line,
-            column=node.column,
-        )
+        for stmt in node.body:
+            self._visit_statement(stmt)
 
-        # Add variable to current scope.
-        if not self.current_scope.define(symbol):
+        self.current_scope = previous_scope
+        self.current_function = previous_function
+
+    def _visit_Block(self, node: Block) -> None:
+        """
+        Each block gets its own nested scope.
+        """
+        previous_scope = self.current_scope
+        self.current_scope = Scope("block", parent=previous_scope)
+
+        for stmt in node.statements:
+            self._visit_statement(stmt)
+
+        self.current_scope = previous_scope
+
+    def _visit_VarDecl(self, node: VarDecl) -> None:
+        """
+        Validate variable declaration and optional initializer.
+        """
+        var_name = node.name.lexeme
+        declared_type = self._token_to_type(node.var_type)
+
+        if not self.current_scope.define(
+            VariableSymbol(
+                name=var_name,
+                type=declared_type,
+                line=node.name.line,
+                column=node.name.column,
+            )
+        ):
             self.result.add_error(
-                f"Duplicate declaration of variable '{node.name}'",
-                node.line,
-                node.column,
+                f"Duplicate variable declaration '{var_name}'",
+                node.name.line,
+                node.name.column,
             )
 
-    def _visit_AssignmentNode(self, node) -> None:
-        """
-        Validate assignment.
+        if node.initializer is not None:
+            init_type = self._visit_expression(node.initializer)
 
-        Rules:
-        - variable must already be declared
-        - assigned value type must match variable type
-
-        Example:
-            x = 5;
-        """
-        symbol = self.current_scope.lookup(node.name)
-
-        if symbol is None:
-            self.result.add_error(
-                f"Undeclared identifier '{node.name}'",
-                node.line,
-                node.column,
-            )
-            return
-
-        value_type = self._visit_expression(node.value)
-
-        if symbol.type != UNKNOWN_TYPE and value_type != UNKNOWN_TYPE:
-            if symbol.type != value_type:
+            if not self._is_assignable(declared_type, init_type):
                 self.result.add_error(
-                    f"Cannot assign value of type '{value_type}' to variable '{node.name}' "
-                    f"of type '{symbol.type}'",
-                    node.line,
-                    node.column,
+                    f"Cannot assign value of type '{init_type}' to variable '{var_name}' of type '{declared_type}'",
+                    node.name.line,
+                    node.name.column,
                 )
 
-    def _visit_IfNode(self, node) -> None:
-        """
-        Validate if statement.
+    def _visit_PrintStmt(self, node: PrintStmt) -> None:
+        self._visit_expression(node.expression)
 
-        Rule:
-        - condition must be of type 'flag'
+    def _visit_ExpressionStmt(self, node: ExpressionStmt) -> None:
+        self._visit_expression(node.expression)
 
-        Example:
-            when (x < 5) { ... }
-        """
-        condition_type = self._visit_expression(node.condition)
+    def _visit_IfStmt(self, node: IfStmt) -> None:
+        cond_type = self._visit_expression(node.condition)
 
-        if condition_type != UNKNOWN_TYPE and condition_type != FLAG_TYPE:
+        if cond_type != YA_AH_YA_LA_TYPE and cond_type != UNKNOWN_TYPE:
             self.result.add_error(
-                "Condition of 'when' must be of type 'flag'",
-                node.condition.line,
-                node.condition.column,
+                "If condition must be of type 'ya_ah_ya_la'",
+                self._expr_line(node.condition),
+                self._expr_column(node.condition),
             )
 
-        # Validate then block.
-        self._visit_block(node.then_block)
+        self._visit_statement(node.then_branch)
 
-        # Validate else block if present.
-        if node.else_block is not None:
-            self._visit_block(node.else_block)
+        for elif_condition, elif_stmt in node.elif_branches:
+            elif_type = self._visit_expression(elif_condition)
 
-    def _visit_WhileNode(self, node) -> None:
-        """
-        Validate while loop.
+            if elif_type != YA_AH_YA_LA_TYPE and elif_type != UNKNOWN_TYPE:
+                self.result.add_error(
+                    "Else-if condition must be of type 'ya_ah_ya_la'",
+                    self._expr_line(elif_condition),
+                    self._expr_column(elif_condition),
+                )
 
-        Rule:
-        - condition must be of type 'flag'
+            self._visit_statement(elif_stmt)
 
-        Example:
-            loop (x < 5) { ... }
-        """
-        condition_type = self._visit_expression(node.condition)
+        if node.else_branch is not None:
+            self._visit_statement(node.else_branch)
 
-        if condition_type != UNKNOWN_TYPE and condition_type != FLAG_TYPE:
+    def _visit_WhileStmt(self, node: WhileStmt) -> None:
+        cond_type = self._visit_expression(node.condition)
+
+        if cond_type != YA_AH_YA_LA_TYPE and cond_type != UNKNOWN_TYPE:
             self.result.add_error(
-                "Condition of 'loop' must be of type 'flag'",
-                node.condition.line,
-                node.condition.column,
+                "While condition must be of type 'ya_ah_ya_la'",
+                self._expr_line(node.condition),
+                self._expr_column(node.condition),
             )
 
-        self._visit_block(node.body)
+        self._visit_statement(node.body)
 
-    def _visit_ReturnNode(self, node) -> None:
+    def _visit_ReturnStmt(self, node: ReturnStmt) -> None:
         """
-        Validate return statement.
-
-        Rules:
-        - must appear inside a function
-        - returned expression type must match current function return type
-
-        Example:
-            emit x;
+        Current AST limitation:
+        we can detect 'return outside function', but not strict function
+        return-type compatibility because FunctionDecl has no return_type yet.
         """
         if self.current_function is None:
             self.result.add_error(
-                "Return statement outside of function",
-                node.line,
-                node.column,
+                "Return statement used outside of function",
+                node.keyword.line,
+                node.keyword.column,
             )
             return
 
-        value_type = self._visit_expression(node.value)
-        expected_type = self.current_function.type
-
-        if value_type != UNKNOWN_TYPE and expected_type != UNKNOWN_TYPE:
-            if value_type != expected_type:
-                self.result.add_error(
-                    f"Function '{self.current_function.name}' must return '{expected_type}', "
-                    f"but got '{value_type}'",
-                    node.line,
-                    node.column,
-                )
+        if node.value is not None:
+            self._visit_expression(node.value)
 
     # ============================================================
-    # EXPRESSION VALIDATION
+    # Expression visitors
     # ============================================================
 
     def _visit_expression(self, node) -> QuantaType:
-        """
-        Generic expression dispatcher.
-
-        Every expression visitor returns a QuantaType.
-
-        This is a key professional design decision because it allows
-        semantic analysis to infer and validate expression types.
-        """
-        method_name = f"_visit_{type(node).__name__}"
+        method_name = f"_visit_expr_{type(node).__name__}"
         method = getattr(self, method_name, None)
 
         if method is None:
             self.result.add_error(
-                f"No semantic handler for expression '{type(node).__name__}'",
-                node.line,
-                node.column,
+                f"No semantic visitor implemented for expression '{type(node).__name__}'",
+                0,
+                0,
             )
             return UNKNOWN_TYPE
 
         return method(node)
 
-    def _visit_IntLiteralNode(self, node) -> QuantaType:
-        """
-        Integer literals always have type 'num'.
+    def _visit_expr_Literal(self, node: Literal) -> QuantaType:
+        if isinstance(node.value, bool):
+            return YA_AH_YA_LA_TYPE
 
-        Example:
-            5
-        """
-        return NUM_TYPE
+        if isinstance(node.value, int):
+            return RAKM_TYPE
 
-    def _visit_BoolLiteralNode(self, node) -> QuantaType:
-        """
-        Boolean literals always have type 'flag'.
+        if isinstance(node.value, float):
+            return FATAFET_TYPE
 
-        Example:
-            on
-            off
-        """
-        return FLAG_TYPE
+        if isinstance(node.value, str):
+            return KALAM_TYPE
 
-    def _visit_IdentifierNode(self, node) -> QuantaType:
-        """
-        Validate identifier expression.
+        return UNKNOWN_TYPE
 
-        Rule:
-        - identifier must exist in some visible scope
-
-        Example:
-            x
-        """
-        symbol = self.current_scope.lookup(node.name)
+    def _visit_expr_Variable(self, node: Variable) -> QuantaType:
+        symbol = self.current_scope.lookup(node.name.lexeme)
 
         if symbol is None:
             self.result.add_error(
-                f"Undeclared identifier '{node.name}'",
-                node.line,
-                node.column,
+                f"Use of undeclared identifier '{node.name.lexeme}'",
+                node.name.line,
+                node.name.column,
             )
             return UNKNOWN_TYPE
 
         return symbol.type
 
-    def _visit_BinaryExprNode(self, node) -> QuantaType:
-        """
-        Validate binary expression.
+    def _visit_expr_Assign(self, node: Assign) -> QuantaType:
+        symbol = self.current_scope.lookup(node.name.lexeme)
 
-        Supported rule groups:
-
-        Arithmetic:
-            + - * /
-            requires: num, num
-            returns: num
-
-        Comparison:
-            < > <= >=
-            requires: num, num
-            returns: flag
-
-        Equality:
-            == !=
-            requires: same type on both sides
-            returns: flag
-
-        Logical:
-            && ||
-            requires: flag, flag
-            returns: flag
-        """
-        left_type = self._visit_expression(node.left)
-        right_type = self._visit_expression(node.right)
-        op = node.operator
-
-        arithmetic_ops = {"+", "-", "*", "/"}
-        comparison_ops = {"<", ">", "<=", ">="}
-        equality_ops = {"==", "!="}
-        logical_ops = {"&&", "||"}
-
-        # Arithmetic operators
-        if op in arithmetic_ops:
-            if left_type != NUM_TYPE or right_type != NUM_TYPE:
-                self.result.add_error(
-                    f"Operator '{op}' requires operands of type 'num'",
-                    node.line,
-                    node.column,
-                )
-                return UNKNOWN_TYPE
-            return NUM_TYPE
-
-        # Comparison operators
-        if op in comparison_ops:
-            if left_type != NUM_TYPE or right_type != NUM_TYPE:
-                self.result.add_error(
-                    f"Operator '{op}' requires operands of type 'num'",
-                    node.line,
-                    node.column,
-                )
-                return UNKNOWN_TYPE
-            return FLAG_TYPE
-
-        # Equality operators
-        if op in equality_ops:
-            if left_type == UNKNOWN_TYPE or right_type == UNKNOWN_TYPE:
-                return UNKNOWN_TYPE
-
-            if left_type != right_type:
-                self.result.add_error(
-                    f"Operator '{op}' requires both operands to have the same type",
-                    node.line,
-                    node.column,
-                )
-                return UNKNOWN_TYPE
-
-            return FLAG_TYPE
-
-        # Logical operators
-        if op in logical_ops:
-            if left_type != FLAG_TYPE or right_type != FLAG_TYPE:
-                self.result.add_error(
-                    f"Operator '{op}' requires operands of type 'flag'",
-                    node.line,
-                    node.column,
-                )
-                return UNKNOWN_TYPE
-            return FLAG_TYPE
-
-        # Unknown operator
-        self.result.add_error(
-            f"Unknown binary operator '{op}'",
-            node.line,
-            node.column,
-        )
-        return UNKNOWN_TYPE
-
-    def _visit_CallExprNode(self, node) -> QuantaType:
-        """
-        Validate function call expression.
-
-        Rules:
-        - function must exist
-        - target must actually be a function
-        - argument count must match
-        - argument types must match parameter types
-
-        Example:
-            add(1, 2)
-        """
-        symbol = self.global_scope.lookup(node.name)
+        value_type = self._visit_expression(node.value)
 
         if symbol is None:
             self.result.add_error(
-                f"Call to undeclared function '{node.name}'",
-                node.line,
-                node.column,
+                f"Assignment to undeclared variable '{node.name.lexeme}'",
+                node.name.line,
+                node.name.column,
             )
             return UNKNOWN_TYPE
 
-        if not isinstance(symbol, FunctionSymbol):
+        if isinstance(symbol, FunctionSymbol):
             self.result.add_error(
-                f"'{node.name}' is not a function",
-                node.line,
-                node.column,
+                f"Cannot assign to function '{node.name.lexeme}'",
+                node.name.line,
+                node.name.column,
             )
+            return UNKNOWN_TYPE
+
+        if not self._is_assignable(symbol.type, value_type):
+            self.result.add_error(
+                f"Cannot assign value of type '{value_type}' to variable '{node.name.lexeme}' of type '{symbol.type}'",
+                node.name.line,
+                node.name.column,
+            )
+
+        return symbol.type
+
+    def _visit_expr_Grouping(self, node: Grouping) -> QuantaType:
+        return self._visit_expression(node.expression)
+
+    def _visit_expr_Unary(self, node: Unary) -> QuantaType:
+        right_type = self._visit_expression(node.right)
+
+        if node.operator.type.name == "MINUS":
+            if right_type in (RAKM_TYPE, FATAFET_TYPE, UNKNOWN_TYPE):
+                return right_type
+            self.result.add_error(
+                "Unary '-' requires numeric operand",
+                node.operator.line,
+                node.operator.column,
+            )
+            return UNKNOWN_TYPE
+
+        if node.operator.type.name == "BANG":
+            if right_type in (YA_AH_YA_LA_TYPE, UNKNOWN_TYPE):
+                return YA_AH_YA_LA_TYPE
+            self.result.add_error(
+                "Unary '!' requires boolean operand",
+                node.operator.line,
+                node.operator.column,
+            )
+            return UNKNOWN_TYPE
+
+        return UNKNOWN_TYPE
+
+    def _visit_expr_Binary(self, node: Binary) -> QuantaType:
+        left_type = self._visit_expression(node.left)
+        right_type = self._visit_expression(node.right)
+        op = node.operator.type.name
+
+        # Arithmetic operators
+        if op in ("PLUS", "MINUS", "STAR", "SLASH"):
+            if op == "PLUS" and left_type == KALAM_TYPE and right_type == KALAM_TYPE:
+                return KALAM_TYPE
+
+            if self._is_numeric(left_type) and self._is_numeric(right_type):
+                if left_type == FATAFET_TYPE or right_type == FATAFET_TYPE:
+                    return FATAFET_TYPE
+                return RAKM_TYPE
+
+            if left_type != UNKNOWN_TYPE and right_type != UNKNOWN_TYPE:
+                self.result.add_error(
+                    f"Operator '{node.operator.lexeme}' requires compatible numeric operands",
+                    node.operator.line,
+                    node.operator.column,
+                )
+            return UNKNOWN_TYPE
+
+        # Comparison operators
+        if op in ("GREATER", "GREATER_EQUAL", "LESS", "LESS_EQUAL"):
+            if self._is_numeric(left_type) and self._is_numeric(right_type):
+                return YA_AH_YA_LA_TYPE
+
+            if left_type != UNKNOWN_TYPE and right_type != UNKNOWN_TYPE:
+                self.result.add_error(
+                    f"Operator '{node.operator.lexeme}' requires numeric operands",
+                    node.operator.line,
+                    node.operator.column,
+                )
+            return UNKNOWN_TYPE
+
+        # Equality operators
+        if op in ("EQUAL_EQUAL", "BANG_EQUAL"):
+            if (
+                left_type == right_type
+                or left_type == UNKNOWN_TYPE
+                or right_type == UNKNOWN_TYPE
+                or (self._is_numeric(left_type) and self._is_numeric(right_type))
+            ):
+                return YA_AH_YA_LA_TYPE
+
+            self.result.add_error(
+                f"Cannot compare values of type '{left_type}' and '{right_type}'",
+                node.operator.line,
+                node.operator.column,
+            )
+            return UNKNOWN_TYPE
+
+        # Logical operators
+        if op in ("WA", "AW"):
+            if (
+                left_type in (YA_AH_YA_LA_TYPE, UNKNOWN_TYPE)
+                and right_type in (YA_AH_YA_LA_TYPE, UNKNOWN_TYPE)
+            ):
+                return YA_AH_YA_LA_TYPE
+
+            self.result.add_error(
+                f"Logical operator '{node.operator.lexeme}' requires boolean operands",
+                node.operator.line,
+                node.operator.column,
+            )
+            return UNKNOWN_TYPE
+
+        return UNKNOWN_TYPE
+
+    def _visit_expr_Call(self, node: Call) -> QuantaType:
+        """
+        Validate function call.
+
+        Current AST/parser only allows calling identifiers normally,
+        so we mainly support calls like:
+            add(1, 2)
+        """
+        if not isinstance(node.callee, Variable):
+            self.result.add_error(
+                "Only named functions can be called",
+                node.paren.line,
+                node.paren.column,
+            )
+
+            for arg in node.arguments:
+                self._visit_expression(arg)
+
+            return UNKNOWN_TYPE
+
+        function_name = node.callee.name.lexeme
+        symbol = self.global_scope.lookup(function_name)
+
+        if symbol is None or not isinstance(symbol, FunctionSymbol):
+            self.result.add_error(
+                f"Call to undeclared function '{function_name}'",
+                node.callee.name.line,
+                node.callee.name.column,
+            )
+
+            for arg in node.arguments:
+                self._visit_expression(arg)
+
             return UNKNOWN_TYPE
 
         if len(node.arguments) != len(symbol.parameters):
             self.result.add_error(
-                f"Function '{node.name}' expects {len(symbol.parameters)} arguments "
-                f"but got {len(node.arguments)}",
-                node.line,
-                node.column,
+                f"Function '{function_name}' expects {len(symbol.parameters)} argument(s) but got {len(node.arguments)}",
+                node.paren.line,
+                node.paren.column,
             )
-            return symbol.type
 
-        for argument_node, parameter_symbol in zip(node.arguments, symbol.parameters):
-            arg_type = self._visit_expression(argument_node)
+        for index, arg in enumerate(node.arguments):
+            arg_type = self._visit_expression(arg)
 
-            if arg_type != UNKNOWN_TYPE and arg_type != parameter_symbol.type:
-                self.result.add_error(
-                    f"Argument for parameter '{parameter_symbol.name}' must be "
-                    f"'{parameter_symbol.type}', got '{arg_type}'",
-                    argument_node.line,
-                    argument_node.column,
-                )
+            if index < len(symbol.parameters):
+                expected_type = symbol.parameters[index].type
+                if not self._is_assignable(expected_type, arg_type):
+                    self.result.add_error(
+                        f"Argument {index + 1} of function '{function_name}' expects type '{expected_type}' but got '{arg_type}'",
+                        self._expr_line(arg),
+                        self._expr_column(arg),
+                    )
 
+        # Current AST has no explicit declared return type.
         return symbol.type
 
     # ============================================================
-    # HELPERS
+    # Helpers
     # ============================================================
 
-    def _resolve_type_name(self, type_name: str, line: int, column: int) -> QuantaType:
+    def _token_to_type(self, type_token) -> QuantaType:
         """
-        Convert a type name string into a QuantaType object.
-
-        Example:
-            "num"  -> NUM_TYPE
-            "flag" -> FLAG_TYPE
-
-        If type is unknown, record an error and return UNKNOWN_TYPE.
+        Convert parser type token to semantic type.
         """
-        resolved = TYPE_NAME_MAP.get(type_name)
+        return TYPE_NAME_MAP.get(type_token.lexeme, UNKNOWN_TYPE)
 
-        if resolved is None:
-            self.result.add_error(
-                f"Unknown type '{type_name}'",
-                line,
-                column,
-            )
-            return UNKNOWN_TYPE
+    def _is_numeric(self, typ: QuantaType) -> bool:
+        return typ in (RAKM_TYPE, FATAFET_TYPE)
 
-        return resolved
+    def _is_assignable(self, target: QuantaType, value: QuantaType) -> bool:
+        """
+        Assignment compatibility rules.
+
+        Current rule:
+        - exact same type is allowed
+        - rakm can go into fatafet
+        - unknown is tolerated to avoid cascading errors
+        """
+        if target == UNKNOWN_TYPE or value == UNKNOWN_TYPE:
+            return True
+
+        if target == value:
+            return True
+
+        # int -> float is allowed
+        if target == FATAFET_TYPE and value == RAKM_TYPE:
+            return True
+
+        return False
+
+    def _expr_line(self, expr) -> int:
+        """
+        Best-effort line extraction for error reporting.
+        """
+        if hasattr(expr, "name") and hasattr(expr.name, "line"):
+            return expr.name.line
+
+        if hasattr(expr, "operator") and hasattr(expr.operator, "line"):
+            return expr.operator.line
+
+        if hasattr(expr, "paren") and hasattr(expr.paren, "line"):
+            return expr.paren.line
+
+        return 0
+
+    def _expr_column(self, expr) -> int:
+        """
+        Best-effort column extraction for error reporting.
+        """
+        if hasattr(expr, "name") and hasattr(expr.name, "column"):
+            return expr.name.column
+
+        if hasattr(expr, "operator") and hasattr(expr.operator, "column"):
+            return expr.operator.column
+
+        if hasattr(expr, "paren") and hasattr(expr.paren, "column"):
+            return expr.paren.column
+        return 0

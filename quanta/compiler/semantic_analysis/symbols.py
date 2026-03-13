@@ -1,35 +1,39 @@
-'''
-Symbols represent named entities in the program such as:
-
-- variables
-- function parameters
-- functions
-'''
-
+from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List
-
-from types import QuantaType
-
+from .type import QuantaType, UNKNOWN_TYPE
 
 @dataclass
-class Symbol:        # Base class for all symbols stored in scopes.
+class Symbol:   # Base symbol stored inside scopes.
     name: str
     type: QuantaType
     line: int
     column: int
 
-
 @dataclass
-class VariableSymbol(Symbol):  # Represents a variable declaration.
+class VariableSymbol(Symbol):
+    """ Symbol for local/global variables """
     pass
 
-
 @dataclass
-class ParameterSymbol(Symbol):   # Represents a function parameter.
+class ParameterSymbol(Symbol):
+    """ Symbol for function parameters """
     pass
 
-
 @dataclass
-class FunctionSymbol(Symbol):    # Represents a function definition.
-    parameters: List[ParameterSymbol] = field(default_factory=list)
+class FunctionSymbol(Symbol):   # Symbol for functions.
+    """ Important:
+            With the current AST we do not have an explicit declared return type,
+            so we keep function.type as UNKNOWN_TYPE for now."""
+    parameters: List[ParameterSymbol] = field(default_factory = list)
+
+    def __init__(
+        self,
+        name: str,
+        line: int,
+        column: int,
+        parameters: List[ParameterSymbol] | None = None,
+        type: QuantaType = UNKNOWN_TYPE,
+    ):
+        super().__init__(name = name, type = type, line = line, column = column)
+        self.parameters = parameters or []
