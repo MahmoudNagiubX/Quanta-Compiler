@@ -1,0 +1,11 @@
+rakm x = 10;
+
+law (x > 5) {
+    etba3(x);
+}
+aw law (x > 2) {
+    etba3(x - 1);
+}
+aw {
+    etba3(0);
+}

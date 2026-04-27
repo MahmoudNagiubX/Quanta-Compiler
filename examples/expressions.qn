@@ -1,0 +1,11 @@
+rakm a = 10;
+rakm b = 3;
+rakm sum = a + b;
+rakm diff = a - b;
+rakm product = a * b;
+rakm result = (a + b) * 2;
+
+etba3(sum);
+etba3(diff);
+etba3(product);
+etba3(result);

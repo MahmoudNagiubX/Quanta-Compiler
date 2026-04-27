@@ -19,13 +19,16 @@ class Lexer:    # Converts Quanta source code into tokens.
 
         # ===== Boolean values =====
         "eshta": TokenType.ESHTA,
+        "sa7": TokenType.ESHTA,          # true (arabic)
         "fakes": TokenType.FAKES,
+        "ghalat": TokenType.FAKES,       # false (arabic)
         "faks": TokenType.FAKES,         # tolerate old spelling
 
         # ===== Functions / return =====
         "wasfa": TokenType.WASFA,
         "ya": TokenType.YA,              # old grammar alias
         "raga3": TokenType.RAGA3,
+        "fady": TokenType.FADY,
 
         # ===== Control flow =====
         "law": TokenType.LAW,
@@ -47,6 +50,7 @@ class Lexer:    # Converts Quanta source code into tokens.
     PHRASE_KEYWORDS = (     # These should become one token, not two separate identifiers.
         ("tb law", TokenType.TB_LAW),
         ("tb lw", TokenType.TB_LAW),
+        ("aw law", TokenType.TB_LAW),
         ("ay haga", TokenType.AY_HAGA),
         ("ay_7aga", TokenType.AY_HAGA),
         ("tol lma", TokenType.KHALIK),   # old alias for while
@@ -72,6 +76,8 @@ class Lexer:    # Converts Quanta source code into tokens.
         ">": TokenType.GREATER,
         "!": TokenType.BANG,
     }
+
+    INVISIBLE_CHARS = {"\ufeff", "\u200b", "\u200c", "\u200d"}
 
     def __init__(self, source: str):
         self.source = source
@@ -124,7 +130,7 @@ class Lexer:    # Converts Quanta source code into tokens.
         c = self._advance()
 
         # Ignore spaces, tabs, carriage returns.
-        if c in " \r\t":
+        if c in " \r\t" or c in self.INVISIBLE_CHARS:
             return
 
         # Handle new line.

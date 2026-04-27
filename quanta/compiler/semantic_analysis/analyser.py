@@ -553,10 +553,11 @@ class SemanticAnalyzer:
         Convert function return token to semantic type.
 
         Rule:
-            - wasfa => void
+            - wasfa => void (legacy syntax)
+            - fady => void
             - normal type token => mapped semantic type
         """
-        if return_type_token.lexeme == "wasfa":
+        if return_type_token.lexeme in ("wasfa", "fady"):
             return VOID_TYPE
 
         return TYPE_NAME_MAP.get(return_type_token.lexeme, UNKNOWN_TYPE)

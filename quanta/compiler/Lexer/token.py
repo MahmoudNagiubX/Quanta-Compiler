@@ -21,8 +21,10 @@ class TokenType(Enum):  # Token kinds produced by the lexer.
     WASFA = auto()           # function keyword
     YA = auto()              # legacy function keyword
     RAGA3 = auto()           # return
+    FADY = auto()            # void return type
 
     # ===== Control flow =====
+
     LAW = auto()             # if
     TB_LAW = auto()          # else if
     AY_HAGA = auto()         # else
@@ -81,6 +83,7 @@ class Token:
 
 class LexerError(Exception):    # Error raised when lexer finds invalid source text.
     def __init__(self, message: str, line: int, column: int):
-        super().__init__(f"LexerError: {message} at line {line}, column {column}")
+        self.message = message
         self.line = line
         self.column = column
+        super().__init__(f"LexerError: {message} at line {line}, column {column}")

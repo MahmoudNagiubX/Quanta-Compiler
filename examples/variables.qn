@@ -1,0 +1,9 @@
+rakm age = 20;
+fatafet price = 15.5;
+kalam name = "Mahmoud";
+ya_ah_ya_la active = sa7;
+
+etba3(age);
+etba3(price);
+etba3(name);
+etba3(active);

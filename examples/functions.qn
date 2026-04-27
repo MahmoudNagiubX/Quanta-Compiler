@@ -1,0 +1,6 @@
+wasfa rakm add(rakm a, rakm b) {
+    raga3 a + b;
+}
+
+rakm result = add(5, 3);
+etba3(result);

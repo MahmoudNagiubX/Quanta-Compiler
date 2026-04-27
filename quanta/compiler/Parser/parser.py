@@ -24,6 +24,8 @@ class Parser: # Recursive Descent Parser for Quanta.
         TokenType.TABOOR,
     )
 
+    RETURN_TYPE_TOKENS = (*TYPE_TOKENS, TokenType.FADY)
+
     def __init__(self, tokens: list[Token]):
         self.tokens = tokens
         self.current = 0
@@ -48,10 +50,10 @@ class Parser: # Recursive Descent Parser for Quanta.
             | statement
         """
 
-        # Function with void return:
-        # wasfa main() { ... }
+        # Function declaration:
+        # wasfa returnType name(params) { ... }
         if self._match(TokenType.WASFA):
-            return_type = self._previous()
+            return_type = self._consume_any(self.RETURN_TYPE_TOKENS, "Expected return type after wasfa.")
             return self.function_declaration(return_type)
 
         # Function or variable starting with a type:
@@ -83,7 +85,7 @@ class Parser: # Recursive Descent Parser for Quanta.
         if self._match(TokenType.EQUAL):
             initializer = self.expression()
 
-        self._consume(TokenType.SEMICOLON, "Expected ';' after variable declaration.")
+        self._consume_semicolon("Expected ';' after variable declaration.", hint="Missing ';' after variable declaration.")
         return VarDecl(var_type, name, initializer)
 
     def function_declaration(self, return_type: Token):
@@ -92,11 +94,11 @@ class Parser: # Recursive Descent Parser for Quanta.
         returnType IDENTIFIER "(" parameters? ")" block
 
         Examples:
-            rakm add(rakm a, rakm b) {
+            wasfa rakm add(rakm a, rakm b) {
                 raga3 a + b;
             }
 
-            wasfa main() {
+            wasfa fady main() {
                 etba3("hello");
             }
         """
@@ -157,15 +159,17 @@ class Parser: # Recursive Descent Parser for Quanta.
         self._consume(TokenType.LPAREN, "Expected '(' after etba3.")
         value = self.expression()
         self._consume(TokenType.RPAREN, "Expected ')' after printed value.")
-        self._consume(TokenType.SEMICOLON, "Expected ';' after print statement.")
+        self._consume_semicolon("Expected ';' after print statement.", hint="Missing ';' after print statement.")
         return PrintStmt(value)
 
     def if_statement(self):
         """
         ifStmt ->
             "law" "(" expression ")" statement
-            ("tb law" "(" expression ")" statement)*
-            ("ay haga" statement)?
+            ("aw law" "(" expression ")" statement)*
+            ("aw" statement)?
+
+        The old syntax "ay haga" is still accepted as an else branch alias.
         """
         self._consume(TokenType.LPAREN, "Expected '(' after law.")
         condition = self.expression()
@@ -175,14 +179,14 @@ class Parser: # Recursive Descent Parser for Quanta.
 
         elif_branches = []
         while self._match(TokenType.TB_LAW):
-            self._consume(TokenType.LPAREN, "Expected '(' after tb law.")
+            self._consume(TokenType.LPAREN, "Expected '(' after aw law.")
             elif_condition = self.expression()
             self._consume(TokenType.RPAREN, "Expected ')' after else-if condition.")
             elif_body = self.statement()
             elif_branches.append((elif_condition, elif_body))
 
         else_branch = None
-        if self._match(TokenType.AY_HAGA):
+        if self._match(TokenType.AW) or self._match(TokenType.AY_HAGA):
             else_branch = self.statement()
 
         return IfStmt(condition, then_branch, elif_branches, else_branch)
@@ -207,7 +211,7 @@ class Parser: # Recursive Descent Parser for Quanta.
         if not self._check(TokenType.SEMICOLON):
             value = self.expression()
 
-        self._consume(TokenType.SEMICOLON, "Expected ';' after return statement.")
+        self._consume_semicolon("Expected ';' after return statement.", hint="Missing ';' after return statement.")
         return ReturnStmt(keyword, value)
 
     def block_statements(self) -> list:
@@ -230,7 +234,7 @@ class Parser: # Recursive Descent Parser for Quanta.
         exprStmt -> expression ";"
         """
         expr = self.expression()
-        self._consume(TokenType.SEMICOLON, "Expected ';' after expression.")
+        self._consume_semicolon("Expected ';' after expression.", hint="Missing ';' after expression.")
         return ExpressionStmt(expr)
 
     # ============================================================
@@ -447,6 +451,41 @@ class Parser: # Recursive Descent Parser for Quanta.
 
         raise self._error(self._peek(), message)
 
+    def _consume_semicolon(self, message: str, hint: str | None = None) -> Token:
+        """Consume a semicolon while reporting missing semicolons on the previous token line."""
+        if self._check(TokenType.SEMICOLON):
+            return self._advance()
+
+        if self._is_at_end() or self._check(TokenType.RBRACE) or self._is_statement_start(self._peek()):
+            previous = self._previous()
+            raise self._error(previous, message, hint=hint)
+
+        return self._consume(TokenType.SEMICOLON, message)
+
+    def _is_statement_start(self, token: Token) -> bool:
+        return token.type in (
+            TokenType.RAKM,
+            TokenType.FATAFET,
+            TokenType.KALAM,
+            TokenType.YA_AH_YA_LA,
+            TokenType.TABOOR,
+            TokenType.WASFA,
+            TokenType.YA,
+            TokenType.LAW,
+            TokenType.KHALIK,
+            TokenType.RAGA3,
+            TokenType.ETBA3,
+            TokenType.OLY,
+            TokenType.IDENTIFIER,
+            TokenType.INT_LITERAL,
+            TokenType.FLOAT_LITERAL,
+            TokenType.STRING_LITERAL,
+            TokenType.LPAREN,
+            TokenType.BANG,
+            TokenType.MINUS,
+            TokenType.LBRACE,
+        )
+
     def _check_next(self, token_type: TokenType) -> bool:
         """ Check the next token without consuming it """
         if self.current + 1 >= len(self.tokens):
@@ -485,6 +524,6 @@ class Parser: # Recursive Descent Parser for Quanta.
     def _previous(self) -> Token:   # Return last consumed token.
         return self.tokens[self.current - 1]
 
-    def _error(self, token: Token, message: str) -> ParseError:
-        """ Build a parse error with line/column info. """ 
-        return ParseError(message, token.line, token.column)
+    def _error(self, token: Token, message: str, hint: str | None = None) -> ParseError:
+        """ Build a parse error with line/column info. """
+        return ParseError(message, token.line, token.column, hint=hint)

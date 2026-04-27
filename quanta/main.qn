@@ -1,0 +1,3 @@
+rakm x = 5;
+rakm y = 10;
+etba3(x + y);

@@ -1,0 +1,5 @@
+wasfa fady say_hello(kalam name) {
+    etba3(name);
+}
+
+say_hello("Alice");

@@ -1,0 +1,5 @@
+rakm i = 0;
+khalik (i < 3) {
+    etba3(i);
+    i = i + 1;
+}
